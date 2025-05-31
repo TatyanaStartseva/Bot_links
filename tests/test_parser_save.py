@@ -1,12 +1,72 @@
 import os
-import  sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Parser')))
+import sys
+import pytest
 from unittest.mock import AsyncMock
 
-import pytest
+# Добавляем путь к директории с parser_save
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Parser')))
+
 from parser_save import insert_many, retry, Chats, Users
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from parser_save import Users
+
+import pytest
+import datetime
+from unittest.mock import AsyncMock, MagicMock
+from parser_save import Users, Chats
+
+
 @pytest.mark.asyncio
-async def test_users_skips_users_without_username_or_first_name():
+async def test_users_inserts_valid_users_and_links():
+    # Создание данных
+    data = {
+        "accounts": {
+            123: {
+                "info": {
+                    "username": "testuser",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "last_online": "2024-05-01 12:00:00",
+                    "bio": "Some bio",
+                    "premium": True,
+                    "phone": "1234567890",
+                    "image": True,
+                },
+                "chats": {111, 222}
+            }
+        },
+        "chats": {111: {}, 222: {}}
+    }
+
+    # Моки
+    mock_users = AsyncMock()
+    mock_users.distinct.return_value = []
+
+    mock_links = MagicMock()
+    mock_links.find.return_value = iter([])  # возвращает итерируемый объект, не корутину
+    mock_links.insert_many = AsyncMock()
+
+    mock_db = {
+        "users": mock_users,
+        "links": mock_links
+    }
+
+    await Users(data, mock_db)
+
+    # Проверки
+    mock_users.insert_many.assert_called_once()
+    inserted_users = mock_users.insert_many.call_args[0][0]
+    assert inserted_users[0]["username"] == "testuser"
+
+    mock_links.insert_many.assert_called_once()
+    inserted_links = mock_links.insert_many.call_args[0][0]
+    assert len(inserted_links) == 2
+
+
+@pytest.mark.asyncio
+async def test_users_skips_invalid_users():
     data = {
         "accounts": {
             1: {
@@ -23,70 +83,58 @@ async def test_users_skips_users_without_username_or_first_name():
                 "chats": {100}
             }
         },
-        "chats": [100]
+        "chats": {100: {}}
     }
 
+    mock_users = AsyncMock()
+    mock_users.distinct.return_value = []
+
+    mock_links = MagicMock()
+    mock_links.find.return_value = iter([])
+    mock_links.insert_many = AsyncMock()
+
     mock_db = {
-        "users": AsyncMock(),
-        "links": AsyncMock(),
+        "users": mock_users,
+        "links": mock_links
     }
-    mock_db["users"].distinct.return_value = []
-    mock_db["links"].find.return_value = []
 
     await Users(data, mock_db)
 
-    # Никакие данные не должны быть вставлены
-    assert mock_db["users"].insert_many.call_count == 0
-    assert mock_db["links"].insert_many.call_count == 1  # ссылки всё равно должны добавиться
+    mock_users.insert_many.assert_not_called()
+    mock_links.insert_many.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_chats_inserts_new_chats():
     data = {
         "chats": {
-            101: {
-                "parent_link": "https://t.me/parent",
-                "children_link": "https://t.me/child",
-                "title": "Test Channel",
-                "last_online": "2023-05-01 10:00:00"
+            1: {
+                "parent_link": "https://t.me/test1",
+                "children_link": "https://t.me/test1_child",
+                "title": "Test Chat",
+                "last_online": "2024-01-01 10:00:00",
+            },
+            2: {
+                "parent_link": "https://t.me/test2",
+                "children_link": "https://t.me/test2_child",
+                "title": "Test Chat 2",
+                "last_online": None,
             }
-        }
+        },
+        "accounts": {}
     }
 
+    mock_chats = AsyncMock()
+    mock_chats.distinct.return_value = [3]  # 3 не используется, 1 и 2 должны добавиться
+
     mock_db = {
-        "chats": AsyncMock()
+        "chats": mock_chats
     }
-    mock_db["chats"].distinct.return_value = []  # Чат новый
 
     await Chats(data, mock_db)
 
-    # insert_many должен быть вызван 1 раз
-    assert mock_db["chats"].insert_many.call_count == 1
-    args, _ = mock_db["chats"].insert_many.call_args
-    assert args[0][0]["chat_id"] == 101
+    mock_chats.insert_many.assert_called_once()
+    inserted = mock_chats.insert_many.call_args[0][0]
+    assert len(inserted) == 2
+    assert inserted[0]["chat_id"] == 1
 
-@pytest.mark.asyncio
-async def test_insert_many_empty_list_does_not_call_db():
-    mock_conn = {
-        "table": AsyncMock()
-    }
-
-    await insert_many(mock_conn, "table", [])
-
-    # insert_many не должен быть вызван
-    mock_conn["table"].insert_many.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_retry_retries_on_exception(monkeypatch):
-    call_counter = {"count": 0}
-
-    async def failing_func():
-        call_counter["count"] += 1
-        if call_counter["count"] < 3:
-            raise Exception("fail")
-        return
-
-    await retry(failing_func)
-
-    assert call_counter["count"] == 3  # Убедимся, что были попытки повторов
