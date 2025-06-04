@@ -366,3 +366,4 @@ cd Parser/Parser
 ```bash
 make run_all
 ```
+После запуска, перейдите в бота @Adds_Links_bot 
