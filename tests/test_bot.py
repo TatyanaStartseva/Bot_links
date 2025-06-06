@@ -91,6 +91,7 @@ async def test_download_links_with_exception(mocker):
 @pytest.mark.asyncio
 async def test_tasks_links_raises_exception(mocker):
     state = AsyncMock()
+    state.clear = AsyncMock()
     message = AsyncMock()
     message.text = "https://t.me/example1"
 
@@ -124,19 +125,6 @@ async def test_download_command_sets_state():
     state.set_state.assert_called_once_with(DownloadState.waiting_for_download_links)
 
 
-@pytest.mark.asyncio
-async def test_tasks_links_raises_exception(mocker):
-    state = AsyncMock()
-    message = AsyncMock()
-    message.text = "https://t.me/example1"
-
-    mocker.patch("requests.post", side_effect=Exception("Test error"))
-
-    await tasks_links(message, state)
-
-    message.answer.assert_called_once()
-    assert "Ошибка" in message.answer.call_args[0][0]
-    state.clear.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_tasks_links_with_invalid_links(mocker):
