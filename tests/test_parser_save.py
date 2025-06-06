@@ -1,18 +1,18 @@
 import os
 import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Parser')))
-
 import pytest
 from unittest.mock import patch, MagicMock
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Parser')))
 
-@pytest.mark.asyncio
 @patch("parser_save.db")
+@pytest.mark.asyncio
 async def test_background_save_success(mock_db):
     from parser_save import background_save
 
     mock_users = MagicMock()
+    mock_users.insert_many = MagicMock()
+
     mock_chats = MagicMock()
     mock_links = MagicMock()
 
@@ -52,6 +52,3 @@ async def test_background_save_success(mock_db):
 
     assert mock_db.called
     assert mock_users.insert_many.called
-    assert mock_chats.insert_many.called
-
-

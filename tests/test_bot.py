@@ -2,7 +2,7 @@ import pytest
 import os
 import  sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Bot')))
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock, AsyncMock
 from commands.commands import start, tasks_command, download_command, tasks_links, download_links, ParseState, DownloadState
 
 @pytest.mark.asyncio
@@ -90,19 +90,20 @@ async def test_download_links_with_exception(mocker):
 
 @pytest.mark.asyncio
 async def test_tasks_links_raises_exception(mocker):
-    state = AsyncMock()
-    state.clear = AsyncMock()
     message = AsyncMock()
     message.text = "https://t.me/example1"
 
-    # Искусственно вызовем ошибку при requests.post
+    # Создаем state как MagicMock, но его clear — это AsyncMock
+    state = MagicMock()
+    state.clear = AsyncMock()
+
     mocker.patch("requests.post", side_effect=Exception("Test error"))
 
     await tasks_links(message, state)
 
     message.answer.assert_called_once()
     assert "Ошибка" in message.answer.call_args[0][0]
-    state.clear.assert_called_once()
+    state.clear.assert_awaited_once()
 
 
 @pytest.mark.asyncio
